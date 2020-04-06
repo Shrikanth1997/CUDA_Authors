@@ -100,19 +100,21 @@ __global__ void count(int* auth_num) {
     // Than number of elements in the vectors. How can this help?
 
         int co_auth = 0; 
-        struct node* pCrawl = newgraph->set[tid].head; 
+        struct node* vert_node = newgraph->set[tid].head; 
         //printf("\n Adjacency list of vertex %d\n head ", v); 
-        /*while (pCrawl) 
+        /*while (vert_node) 
         { 
-            //printf("-> %d", pCrawl->dst); 
-            pCrawl = pCrawl->next;
+            //printf("-> %d", vert_node->dst); 
+            vert_node = vert_node->next;
 	    co_auth++; 
         }*/
-        auth_num[tid] = pCrawl->dst;
+        auth_num[tid] = vert_node->dst;
     
 
 }
 
+
+//Utility functions to read the file
 long get_vert(char *str){
 	char vert[20];
 	int space_count = 0;
@@ -230,13 +232,13 @@ int main() {
 
     
     /*for(int v=0;v<10;v++){
-        struct node* pCrawl = newgraph->set[v].head; 
+        struct node* vert_node = newgraph->set[v].head; 
 	checkauth=0;
         printf("\n Adjacency list of vertex %d\n head ", v); 
-        while (pCrawl) 
+        while (vert_node) 
         { 
-            printf("-> %d", pCrawl->dst); 
-            pCrawl = pCrawl->next;
+            printf("-> %d", vert_node->dst); 
+            vert_node = vert_node->next;
         }
      }*/
 
