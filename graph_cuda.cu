@@ -5,7 +5,6 @@
 #define N 317080
 #define EDGES 1049886
 
-int auth_num[N+1];
 // Data structure to store graph
 struct Graph {
 	// An array of pointers to Node to represent adjacency list
@@ -31,6 +30,7 @@ struct author{
 extern __managed__ struct Graph * graph ;
 extern __managed__ struct Node* newNode ;
 extern __managed__ struct author *auth_list;
+extern __managed__ int  *dist_auth;
 
 // Function to create an adjacency list from specified edges
 __host__ void createGraph(struct Graph* graph, struct Edge edges[], int n)
@@ -110,6 +110,22 @@ __global__ void countAuth(struct Graph* graph,struct author *auth_list, int n)
 	}
 }
 
+
+__global__ void distAuth(struct author *auth_list, int *dist_auth, int n)
+{
+	int tid = blockIdx.x * blockDim.x + threadIdx.x; // HERE
+	int stride = blockDim.x * gridDim.x;
+
+
+	int i;
+	for (i = tid; i < n+1; i+=stride)
+	{
+		int idx = auth_list[i].co_auth;
+		atomicAdd(dist_auth + idx, 1);
+	}
+
+}
+
 long get_vert(char *str){
 	char vert[20];
 	int space_count = 0;
@@ -186,6 +202,15 @@ int get_dst(char *str){
         return dst;
 }
 
+
+int comparator(const void *p, const void *q)  
+{ 
+    int l = ((struct author *)p)->co_auth; 
+    int r = ((struct author *)q)->co_auth;  
+    return (r - l); 
+}
+
+ 
 // Directed Graph Implementation in C
 int main(void)
 {
@@ -245,33 +270,47 @@ int main(void)
     	// Set device that we will use for our cuda code
     	cudaSetDevice(0);
 	
-	for (i = 0; i < N+1; i++){
-		auth_num[i] = 0;
-
-	}
 
 	cudaMallocManaged(&auth_list, graph_size * sizeof(struct author), (unsigned int)cudaMemAttachGlobal);
     	cudaMemAdvise(auth_list, graph_size * sizeof(struct author), cudaMemAdviseSetAccessedBy, cudaCpuDeviceId);
-
-	int *auth_num_gpu;
-	cudaMalloc(&auth_num_gpu, (N+1)*sizeof(int));
-	cudaMemcpy(auth_num_gpu, auth_num, (N+1)*sizeof(int), cudaMemcpyHostToDevice);
-
+	
 	// print adjacency list representation of graph
-	countAuth<<<grid_size, block_size>>>(graph,auth_list, N);
+	countAuth<<<grid_size, block_size>>>(graph, auth_list, N);
+	cudaDeviceSynchronize();
 
-	cudaMemcpy(auth_num, auth_num_gpu,(N+1)*sizeof(int) , cudaMemcpyDeviceToHost);
+	/*for(i=0;i<N+1;i++){
+		printf("Author %d : %d\n",auth_list[i].id, auth_list[i].co_auth);
+	}*/
+
+	qsort((void*)auth_list, graph_size, sizeof(struct author), comparator);
+
+	/*for(i=0;i<N+1;i++){
+		printf("Author %d : %d\n",auth_list[i].id, auth_list[i].co_auth);
+	}*/
+
+	int max = auth_list[0].co_auth;
 
 	for(i=0;i<N+1;i++){
-		printf("Author %d : %d\n",auth_list[i].id, auth_list[i].co_auth);
+		if(auth_list[i].co_auth == max)
+			printf("Author %d : %d\n",auth_list[i].id, auth_list[i].co_auth);
 	}
-	
-	//cudaFree(auth_num_gpu);
 
-	/*for ( int i=0; i<= N; ++i){
-		cudaFree(graph->head[i]);
-	}*/
-	//cudaFree(graph);
+ 	
+	cudaMallocManaged(&dist_auth, (max+1) * sizeof(int), (unsigned int)cudaMemAttachGlobal);
+    	cudaMemAdvise(dist_auth, (max+1) * sizeof(int), cudaMemAdviseSetAccessedBy, cudaCpuDeviceId);
+	cudaMemset(dist_auth, 0, (max+1)*sizeof(int));
+	
+	graph_size = N + 1;
+    	block_size  = 64;
+    	grid_size   = (graph_size + block_size - 1)/block_size;
+
+	distAuth<<<grid_size, block_size>>>(auth_list, dist_auth, N);
+	cudaDeviceSynchronize();
+	
+	
+	for(i=0;i<=max;i++){
+		printf("Dist %d: %d\n", i, dist_auth[i]);
+	}
 
 	return 0;
 }
