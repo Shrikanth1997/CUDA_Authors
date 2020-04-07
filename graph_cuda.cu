@@ -23,8 +23,14 @@ struct Edge {
 	int src, dest;
 };
 
+struct author{
+	int id;
+	int co_auth;
+};
+
 extern __managed__ struct Graph * graph ;
 extern __managed__ struct Node* newNode ;
+extern __managed__ struct author *auth_list;
 
 // Function to create an adjacency list from specified edges
 __host__ void createGraph(struct Graph* graph, struct Edge edges[], int n)
@@ -79,7 +85,7 @@ __host__ void createGraph(struct Graph* graph, struct Edge edges[], int n)
 }
 
 // Function to print adjacency list representation of graph
-__global__ void countAuth(struct Graph* graph,int auth_num[], int n)
+__global__ void countAuth(struct Graph* graph,struct author *auth_list, int n)
 {
     	int tid = blockIdx.x * blockDim.x + threadIdx.x; // HERE
 	int stride = blockDim.x * gridDim.x;
@@ -98,7 +104,8 @@ __global__ void countAuth(struct Graph* graph,int auth_num[], int n)
 			ptr = ptr->next;
 			co_auth++;
 		}
-		auth_num[i] = co_auth;
+		auth_list[i].id = i;
+		auth_list[i].co_auth = co_auth;
 		//printf("\n");
 	}
 }
@@ -243,17 +250,20 @@ int main(void)
 
 	}
 
+	cudaMallocManaged(&auth_list, graph_size * sizeof(struct author), (unsigned int)cudaMemAttachGlobal);
+    	cudaMemAdvise(auth_list, graph_size * sizeof(struct author), cudaMemAdviseSetAccessedBy, cudaCpuDeviceId);
+
 	int *auth_num_gpu;
 	cudaMalloc(&auth_num_gpu, (N+1)*sizeof(int));
 	cudaMemcpy(auth_num_gpu, auth_num, (N+1)*sizeof(int), cudaMemcpyHostToDevice);
 
 	// print adjacency list representation of graph
-	countAuth<<<grid_size, block_size>>>(graph,auth_num_gpu, N);
+	countAuth<<<grid_size, block_size>>>(graph,auth_list, N);
 
 	cudaMemcpy(auth_num, auth_num_gpu,(N+1)*sizeof(int) , cudaMemcpyDeviceToHost);
 
 	for(i=0;i<N+1;i++){
-		printf("Author %d : %d\n",i,auth_num[i]);
+		printf("Author %d : %d\n",auth_list[i].id, auth_list[i].co_auth);
 	}
 	
 	//cudaFree(auth_num_gpu);
