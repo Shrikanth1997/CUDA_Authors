@@ -41,7 +41,7 @@ __host__ void createGraph(struct Graph* graph, struct Edge edges[], int n)
 	}
 
 	// add edges to the directed graph one by one
-	for (i = 0; i < n; i++)
+	for (i = 0; i < N+1; i++)
 	{
 		// get source and destination vertex
 		int src = edges[i].src;
@@ -81,26 +81,26 @@ __host__ void createGraph(struct Graph* graph, struct Edge edges[], int n)
 // Function to print adjacency list representation of graph
 __global__ void countAuth(struct Graph* graph,int auth_num[], int n)
 {
-    	int tid = (int)(blockIdx.x * blockDim.x) + threadIdx.x; // HERE
+    	int tid = blockIdx.x * blockDim.x + threadIdx.x; // HERE
+	int stride = blockDim.x * gridDim.x;
 
 
 	int i;
-	//for (i = 0; i < n+1; i++)
-	//{		
-		//printf("%d\n", tid);
+	for (i = tid; i < n+1; i+=stride)
+	{		
+		//printf("%d\n", tid+i);
 		int co_auth = 0;
 		// print current vertex and all ts neighbors
-		struct Node* ptr = graph->head[tid];
+		struct Node* ptr = graph->head[i];
 		while (ptr != NULL)
 		{
 			//printf("(%d -> %d)\t", tid, ptr->dest);
 			ptr = ptr->next;
 			co_auth++;
 		}
-		//auth_num[tid] = tid;
-		auth_num[tid] = co_auth;
+		auth_num[i] = co_auth;
 		//printf("\n");
-	//}
+	}
 }
 
 long get_vert(char *str){
@@ -231,9 +231,9 @@ int main(void)
 	printf("Graph Created...\n");	
 
 
-	int graph_size = N+1;
-    	int block_size  = 512;
-    	int grid_size   = ((graph_size-1)/block_size) + 1;
+	int graph_size = N + 1;
+    	int block_size  = 64;
+    	int grid_size   = (graph_size + block_size - 1)/block_size;
 
     	// Set device that we will use for our cuda code
     	cudaSetDevice(0);
@@ -245,12 +245,12 @@ int main(void)
 
 	int *auth_num_gpu;
 	cudaMalloc(&auth_num_gpu, (N+1)*sizeof(int));
-	cudaMemcpy(auth_num_gpu, auth_num, N+1, cudaMemcpyHostToDevice);
+	cudaMemcpy(auth_num_gpu, auth_num, (N+1)*sizeof(int), cudaMemcpyHostToDevice);
 
 	// print adjacency list representation of graph
 	countAuth<<<grid_size, block_size>>>(graph,auth_num_gpu, N);
 
-	cudaMemcpy(auth_num, auth_num_gpu, N+1, cudaMemcpyDeviceToHost);
+	cudaMemcpy(auth_num, auth_num_gpu,(N+1)*sizeof(int) , cudaMemcpyDeviceToHost);
 
 	for(i=0;i<N+1;i++){
 		printf("Author %d : %d\n",i,auth_num[i]);
