@@ -27,12 +27,12 @@ extern __managed__ struct Graph * graph ;
 extern __managed__ struct Node* newNode ;
 
 // Function to create an adjacency list from specified edges
-__host__ void createGraph(struct Edge edges[], int n)
+__host__ void createGraph(struct Graph* graph, struct Edge edges[], int n)
 {
 	unsigned i;
 
 	// allocate memory for graph data structure
-	struct Graph* graph = (struct Graph*)malloc(sizeof(struct Graph));
+	//struct Graph* graph = (struct Graph*)malloc(sizeof(struct Graph));
 
 	// initialize head pointer for all vertices
 	for (i = 0; i < N+1; i++){
@@ -81,12 +81,13 @@ __host__ void createGraph(struct Edge edges[], int n)
 // Function to print adjacency list representation of graph
 __global__ void countAuth(struct Graph* graph,int auth_num[], int n)
 {
-    	int tid = blockIdx.x * blockDim.x + threadIdx.x; // HERE
+    	int tid = (int)(blockIdx.x * blockDim.x) + threadIdx.x; // HERE
 
 
-	//int i;
+	int i;
 	//for (i = 0; i < n+1; i++)
-	//{
+	//{		
+		//printf("%d\n", tid);
 		int co_auth = 0;
 		// print current vertex and all ts neighbors
 		struct Node* ptr = graph->head[tid];
@@ -96,8 +97,8 @@ __global__ void countAuth(struct Graph* graph,int auth_num[], int n)
 			ptr = ptr->next;
 			co_auth++;
 		}
+		//auth_num[tid] = tid;
 		auth_num[tid] = co_auth;
-		//auth_num[tid] = ptr->dest;
 		//printf("\n");
 	//}
 }
@@ -225,7 +226,7 @@ int main(void)
 	cudaMallocManaged(&graph, sizeof(struct Graph), (unsigned int)cudaMemAttachGlobal);
     	cudaMemAdvise(graph, sizeof(struct Graph), cudaMemAdviseSetAccessedBy, cudaCpuDeviceId);
 
-	createGraph(edges, N);
+	createGraph(graph, edges, N);
 
 	printf("Graph Created...\n");	
 
@@ -247,7 +248,7 @@ int main(void)
 	cudaMemcpy(auth_num_gpu, auth_num, N+1, cudaMemcpyHostToDevice);
 
 	// print adjacency list representation of graph
-	countAuth<<<N+1, 1>>>(graph,auth_num_gpu, N);
+	countAuth<<<grid_size, block_size>>>(graph,auth_num_gpu, N);
 
 	cudaMemcpy(auth_num, auth_num_gpu, N+1, cudaMemcpyDeviceToHost);
 
